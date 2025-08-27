@@ -1,5 +1,0 @@
-input:
-  excel_file_path: "C:/dev/sample_data/ncr_ride_bookings.xlsx"
-
-output:
-  processed_path : "C:/dev/sample_data/processed"
