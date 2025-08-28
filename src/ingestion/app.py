@@ -48,6 +48,25 @@ def save_sheets_to_parquet(
             print(f"Saved sheet '{sheet_name}' to {file_path}")
         except Exception as e:
             print(e)
+
+
+def validate_parquet_schema(file_path: str) -> pd.DataFrame:
+
+
+    path = Path(file_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Parquet file not found: {file_path}")
+    
+    df = pd.read_parquet(file_path)  
+    
+    print(f"\nPreview of the data from {file_path}:")
+    print(df.head())
+
+    print("\nSchema of the DataFrame:")
+    print(df.dtypes)
+
+    return df
+
     
 if __name__ == "__main__":
     excel_file_path = "C:/dev/sample_data/ncr_ride_bookings.xlsx"
@@ -62,6 +81,9 @@ if __name__ == "__main__":
             print(df.head())
         
         save_sheets_to_parquet(sheets, output_dir)
-    
+        
+        for parquet_file in Path(output_dir).glob("*parquet"):
+            df = validate_parquet_schema(parquet_file)
+            
     except Exception as e:
         print(f"Error reading Excel file: {e}")
