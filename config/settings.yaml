@@ -1,0 +1,5 @@
+excel_reader:
+  input_file: "C:/dev/sample_data/ncr_ride_bookings.xlsx"
+  sheet_name: null         # null → lê todas as planilhas
+  skip_empty_sheets: true  # ignorar planilhas vazias
+  encoding: "utf-8"        # útil caso haja caracteres especiais

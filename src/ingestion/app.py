@@ -2,7 +2,17 @@ import pandas as pd
 from pathlib import Path
 from typing import Optional
 from typing import Dict
+import yaml
 
+def load_config(config_path: str) -> Dict[str, any]:
+    
+    path = Path(config_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+    
+    with open(path, 'r', encoding="utf-8") as f:
+        return yaml.safe_load(f)
+    
 def read_excel(file_path: str, sheet_name: Optional[str] = None) -> pd.DataFrame:
     
     path = Path(file_path)
