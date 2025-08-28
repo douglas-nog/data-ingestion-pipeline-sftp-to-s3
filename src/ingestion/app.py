@@ -1,7 +1,7 @@
 import pandas as pd
 from pathlib import Path
 from typing import Optional
-from typing import Dict
+from typing import Dict, Optional
 
 def read_excel(file_path: str, sheet_name: Optional[str] = None) -> pd.DataFrame:
     
@@ -30,7 +30,6 @@ def read_excel(file_path: str, sheet_name: Optional[str] = None) -> pd.DataFrame
         raise ValueError(e)
     
 
-
 def save_sheets_to_parquet(
     sheets: Dict[str, pd.DataFrame],
     output_dir: str,
@@ -48,6 +47,23 @@ def save_sheets_to_parquet(
             print(f"Saved sheet '{sheet_name}' to {file_path}")
         except Exception as e:
             print(e)
+            
+def validate_parquet_schema(file_path: str) -> pd.DataFrame:
+    
+    path = Path(file_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Parquet file not found: {file_path}")
+    
+    df = pd.read_parquet(file_path)
+    
+    print(f"\nPreview of the data from {file_path}:")
+    print(df.head())    
+    
+    print("\nSchema of the DataFrame:")
+    print(df.dtypes)
+    
+    return df
+             
     
 if __name__ == "__main__":
     excel_file_path = "C:/dev/sample_data/ncr_ride_bookings.xlsx"
@@ -55,13 +71,17 @@ if __name__ == "__main__":
     output_dir = "C:/dev/sample_data/processed"
     
     try:
-        sheets = read_excel(excel_file_path)
+        # sheets = read_excel(excel_file_path)
         
-        for sheet_name, df in sheets.items():
-            print(f"\nSheet: {sheet_name}, Rows: {len(df)}, Columns: {df.columns.tolist()}")
-            print(df.head())
+        # for sheet_name, df in sheets.items():
+        #     print(f"\nSheet: {sheet_name}, Rows: {len(df)}, Columns: {df.columns.tolist()}")
+        #     print(df.head())
         
-        save_sheets_to_parquet(sheets, output_dir)
+        # save_sheets_to_parquet(sheets, output_dir)
+        
+        for parquet_file in Path(output_dir).glob("*parquet"):
+            print(f"aqui {parquet_file}")
+            df = validate_parquet_schema(parquet_file)
     
     except Exception as e:
         print(f"Error reading Excel file: {e}")
