@@ -1,6 +1,7 @@
 import pandas as pd
 from pathlib import Path
 from typing import Optional
+from typing import Dict
 
 def read_excel(file_path: str, sheet_name: Optional[str] = None) -> pd.DataFrame:
     
@@ -28,8 +29,30 @@ def read_excel(file_path: str, sheet_name: Optional[str] = None) -> pd.DataFrame
     except Exception as e:
         raise ValueError(e)
     
+
+
+def save_sheets_to_parquet(
+    sheets: Dict[str, pd.DataFrame],
+    output_dir: str,
+    compression: str = "snappy"
+) -> None:
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    for sheet_name, df in sheets.items():
+        file_name = f"{sheet_name.replace(' ', '_').lower()}.parquet"
+        file_path = output_path / file_name
+        
+        try:
+            df.to_parquet(file_path, compression=compression, index=False)
+            print(f"Saved sheet '{sheet_name}' to {file_path}")
+        except Exception as e:
+            print(e)
+    
 if __name__ == "__main__":
     excel_file_path = "C:/dev/sample_data/ncr_ride_bookings.xlsx"
+    
+    output_dir = "C:/dev/sample_data/processed"
     
     try:
         sheets = read_excel(excel_file_path)
@@ -37,6 +60,8 @@ if __name__ == "__main__":
         for sheet_name, df in sheets.items():
             print(f"\nSheet: {sheet_name}, Rows: {len(df)}, Columns: {df.columns.tolist()}")
             print(df.head())
+        
+        save_sheets_to_parquet(sheets, output_dir)
     
     except Exception as e:
         print(f"Error reading Excel file: {e}")
