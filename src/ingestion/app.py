@@ -1,10 +1,10 @@
 import pandas as pd
 from pathlib import Path
-from typing import Optional
-from typing import Dict
+from typing import Dict, Any, List, Union
 import yaml
+import re
 
-def load_config(config_path: str) -> Dict[str, any]:
+def load_config(config_path: str) -> Dict[str, Any]:
     
     path = Path(config_path)
     if not path.is_file():
@@ -13,52 +13,105 @@ def load_config(config_path: str) -> Dict[str, any]:
     with open(path, 'r', encoding="utf-8") as f:
         return yaml.safe_load(f)
     
-def read_excel(file_path: str, sheet_name: Optional[str] = None) -> pd.DataFrame:
+def read_excel_from_config(config: Dict[str, Any]) -> Dict[str, pd.DataFrame]:
     
-    path = Path(file_path)
+    excel_cfg = config.get("excel_reader", {})
+    input_file = excel_cfg.get("input_file")
+    sheet_name = excel_cfg.get("sheet_name", None)
+    skip_empty =  bool(excel_cfg.get("skip_empty_sheets", True))
+    encoding = excel_cfg.get("encoding", None)
+    
+    if not input_file:
+        raise ValueError("Config key 'excel_reader.input_file' is required but missing.")
+    
+    path = Path(input_file)
     if not path.is_file():
-        raise FileNotFoundError(f"File not found: {file_path}")
+        raise FileNotFoundError(f"File not found: {input_file}")
     
     try:
-        # Read all sheets
-        sheets_dict = pd.read_excel(file_path, sheet_name=None)
+        xls = pd.ExcelFile(path)
+        # Decide which sheets to parse:
+        # - If sheet_name is None: read all sheets
+        # - If it's a string: read that named sheet
+        # - If it's an int: treat as positional index (0-based) into xls.sheet_names
         
-        # Validate each sheet
-        valid_sheets = {}
-        for sheet_name, df in sheets_dict.items():
-            if df.empty:
-                print(f"Warning: Sheet '{sheet_name}' is empty and will be skipped.")
+        if sheet_name is None:
+            target_sheets: List[Union[str, int]] = xls.sheet_names
+        else:
+            target_sheets = [sheet_name]
+        
+        sheets: Dict[str, pd.DataFrame] = {}
+        
+        for sh in target_sheets:
+            if isinstance(sh, int):
+                if sh < 0 or sh >= len(xls.sheet_names):
+                    raise IndexError(f"sheet_name index out of range: {sh}")
+                canonical_name = xls.sheet_names[sh]
             else:
-                valid_sheets[sheet_name] = df
-
-        if not valid_sheets:
+                canonical_name = sh
+            
+            df = xls.parse(sh)
+            
+            if skip_empty and df.empty:
+                print(f"Warning: sheet '{canonical_name}' is empty and will be skipped")
+                continue
+            
+            sheets[canonical_name] = df
+            
+        if not sheets:
             raise ValueError("No non-empty sheets found in the Excel file.")
-
-        return valid_sheets
+        
+        return sheets
     
+    except ImportError as ie:
+        raise ImportError("Missing Excel dependency. Install 'openpyxl' for .xlsx/.xlsm and 'xlrd' for legacy .xls files.") from ie
     except Exception as e:
         raise ValueError(e)
     
+def read_excel(config_path: str = "config/settings.yaml") -> Dict[str, pd.DataFrame]:
+    
+    config = load_config(config_path)
+    return read_excel_from_config(config)
 
 
 def save_sheets_to_parquet(
     sheets: Dict[str, pd.DataFrame],
-    output_dir: str,
-    compression: str = "snappy"
+    config: Dict[str, Any]
 ) -> None:
+    
+    pq_config = config.get("parquet_writer", {})
+    output_dir = pq_config.get("output_dir")
+    compression = pq_config.get("compressio", "snappy") # default: snappy (fast & widely supported)
+    overwrite = bool(pq_config.get("overwrite", True))
+    safe_names = bool(pq_config.get("sanitize_names", True))
+    
+    if not output_dir:
+        raise ValueError("Config key 'parquet_writer.output_dir' is required but missing.")
+    
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+        
     
     for sheet_name, df in sheets.items():
-        file_name = f"{sheet_name.replace(' ', '_').lower()}.parquet"
+        if safe_names:
+            safe_sheet_name = re.sub(r'[^a-zA-Z0-9_]', '', sheet_name.replace(" ", "_").lower())    
+        else:
+            safe_sheet_name = sheet_name
+                    
+        file_name = f"{safe_sheet_name}.parquet"
         file_path = output_path / file_name
+        
+        if file_path.exists() and not overwrite:
+            print(f"Skipping sheet '{sheet_name}' → {file_path} already exists (overwrite disabled).")
+            continue
         
         try:
             df.to_parquet(file_path, compression=compression, index=False)
             print(f"Saved sheet '{sheet_name}' to {file_path}")
         except Exception as e:
-            print(e)
-
+            raise RuntimeError(
+                f"Failed to save sheet '{sheet_name}' to Parquet at {file_path}: {e}"
+            ) from e
 
 def validate_parquet_schema(file_path: str) -> pd.DataFrame:
 
@@ -79,21 +132,22 @@ def validate_parquet_schema(file_path: str) -> pd.DataFrame:
 
     
 if __name__ == "__main__":
-    excel_file_path = "C:/dev/sample_data/ncr_ride_bookings.xlsx"
-    
-    output_dir = "C:/dev/sample_data/processed"
     
     try:
-        sheets = read_excel(excel_file_path)
+        config = load_config("config/settings.yaml")
+        sheets = read_excel_from_config(config)
         
-        for sheet_name, df in sheets.items():
-            print(f"\nSheet: {sheet_name}, Rows: {len(df)}, Columns: {df.columns.tolist()}")
+        for name, df in sheets.items():
+            print(f"\nSheet: {name} | Rows: {len(df)} | Columns: {list(df.columns)}")
             print(df.head())
         
-        save_sheets_to_parquet(sheets, output_dir)
+        save_sheets_to_parquet(sheets, config)
+        
+        pq_config = config.get("parquet_writer", {})
+        output_dir = pq_config.get("output_dir")
         
         for parquet_file in Path(output_dir).glob("*parquet"):
-            df = validate_parquet_schema(parquet_file)
+            validate_parquet_schema(parquet_file)
             
     except Exception as e:
         print(f"Error reading Excel file: {e}")

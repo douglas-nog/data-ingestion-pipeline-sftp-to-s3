@@ -3,3 +3,10 @@ excel_reader:
   sheet_name: null         # null → lê todas as planilhas
   skip_empty_sheets: true  # ignorar planilhas vazias
   encoding: "utf-8"        # útil caso haja caracteres especiais
+
+
+parquet_writer:
+  output_dir: "C:/dev/sample_data/processed"
+  compression: "snappy"     # or gzip, zstd, etc.
+  overwrite: true           # allow overwriting existing files
+  sanitize_names: true      # clean sheet names into safe filenames
