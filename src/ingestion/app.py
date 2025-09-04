@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Union
 import yaml
 import re
+from logging import Logger
 
 from src.logger import get_logger
 
@@ -17,7 +18,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
     with open(path, 'r', encoding="utf-8") as f:
         return yaml.safe_load(f)
     
-def read_excel_from_config(config: Dict[str, Any], logger) -> Dict[str, pd.DataFrame]:
+def read_excel_from_config(config: Dict[str, Any], logger: Logger) -> Dict[str, pd.DataFrame]:
     
     excel_cfg = config.get("excel_reader", {})
     input_file = excel_cfg.get("input_file")
@@ -53,9 +54,9 @@ def read_excel_from_config(config: Dict[str, Any], logger) -> Dict[str, pd.DataF
             if isinstance(sh, int):
                 if sh < 0 or sh >= len(xls.sheet_names):
                     raise IndexError(f"sheet_name index out of range: {sh}")
-                canonical_name = xls.sheet_names[sh]
+                canonical_name: str = xls.sheet_names[sh]
             else:
-                canonical_name = sh
+                canonical_name: str = str(sh)
                 
             logger.info("Parsing sheet", extra={"sheet": canonical_name})
             
@@ -87,12 +88,7 @@ def read_excel_from_config(config: Dict[str, Any], logger) -> Dict[str, pd.DataF
         raise ImportError("Missing Excel dependency. Install 'openpyxl' for .xlsx/.xlsm and 'xlrd' for legacy .xls files.") from ie
     except Exception as e:
         logger.error("Failed to read Excel file", extra={"input_file": str(path)}, exc_info=True)
-        raise ValueError(e)
-    
-def read_excel(config_path: str = "config/settings.yaml") -> Dict[str, pd.DataFrame]:
-    
-    config = load_config(config_path)
-    return read_excel_from_config(config)
+        raise 
 
 
 def save_sheets_to_parquet(
@@ -103,7 +99,7 @@ def save_sheets_to_parquet(
     
     pq_config = config.get("parquet_writer", {})
     output_dir = pq_config.get("output_dir")
-    compression = pq_config.get("compressio", "snappy") # default: snappy (fast & widely supported)
+    compression = pq_config.get("compression", "snappy") # default: snappy (fast & widely supported)
     overwrite = bool(pq_config.get("overwrite", True))
     safe_names = bool(pq_config.get("sanitize_names", True))
     
